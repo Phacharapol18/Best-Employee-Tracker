@@ -13,64 +13,99 @@ const db = mysql.createConnection({
     console.log(`Connected to the employeeTracker_db database.`)
 );
 
-const DepartmentList = () =>{
-    return new Promise((fill,reject)=>{
+const DepartmentList = () => {
+    return new Promise((fill, reject) => {
         var departmentNewList = []
-        db.query('SELECT * FROM department', (err,results)=>{
-            if(err) {
+        db.query('SELECT * FROM department', (err, results) => {
+            if (err) {
                 reject(err)
             }
             for (let i = 0; i < results.length; i++) {
                 departmentNewList.push(results[i]);
-                }
-                fill(departmentNewList)
+            }
+            fill(departmentNewList)
         })
     })
 }
 
-const roleList = () =>{
-    return new Promise((fill,reject)=>{
+const roleList = () => {
+    return new Promise((fill, reject) => {
         var roleNewList = []
-        db.query('SELECT * FROM employeerole', (err,results)=>{
-            if(err) {
+        db.query('SELECT * FROM employeerole', (err, results) => {
+            if (err) {
                 reject(err)
             }
             for (let i = 0; i < results.length; i++) {
                 roleNewList.push(results[i].title);
-                }
-                fill(roleNewList)
+            }
+            fill(roleNewList)
         })
     })
 }
 
-const employeeList = () =>{
-    return new Promise((fill,reject)=>{
+const employeeList = () => {
+    return new Promise((fill, reject) => {
         var employeeNewList = []
-        db.query('SELECT * FROM employee', (err,results)=>{
-            if(err) {
+        db.query('SELECT * FROM employee', (err, results) => {
+            if (err) {
                 reject(err)
             }
             for (let i = 0; i < results.length; i++) {
-                employeeNewList.push(CONCAT(results[i].first_name,' ',results[i].last_name));
-                }
-                fill(employeeNewList)
+                employeeNewList.push(results[i].first_name + ' ' + results[i].last_name);
+            }
+            fill(employeeNewList)
         })
     })
 }
 
 
 
-const managerList = () =>{
-    return new Promise((fill,reject)=>{
+const managerList = () => {
+    return new Promise((fill, reject) => {
         var managerNewList = []
-        db.query('SELECT * FROM employee WHERE role_id = 1', (err,results)=>{
-            if(err) {
+        db.query('SELECT * FROM employee', (err, results) => {
+            if (err) {
                 reject(err)
             }
             for (let i = 0; i < results.length; i++) {
-                managerNewList.push(results[i].first_name +' '+ results[i].last_name);
-                }
-                fill(managerNewList)
+                managerNewList.push(results[i].first_name + ' ' + results[i].last_name);
+            }
+            fill(managerNewList)
+        })
+    })
+}
+
+
+const deptId = (allNumId) => {
+    return new Promise((fill, reject) => {
+        db.query('SELECT id FROM department WHERE name = ?', allNumId, (err, results) => {
+            if (err) {
+                reject(err)
+            } else {
+                fill(results[0].id)
+            }
+        })
+    })
+}
+const roleId = (allNumId) => {
+    return new Promise((fill, reject) => {
+        db.query('SELECT id FROM employeerole WHERE title = ?', allNumId, (err, results) => {
+            if (err) {
+                reject(err)
+            } else {
+                fill(results[0].id)
+            }
+        })
+    })
+}
+const employeeId = (allNumId) => {
+    return new Promise((fill, reject) => {
+        db.query('SELECT id FROM employee WHERE first_name = ? AND last_name = ?', [allNumId.split(' ')[0], allNumId.split(' ')[1]], (err, results) => {
+            if (err) {
+                reject(err)
+            } else {
+                fill(results[0].id)
+            }
         })
     })
 }
@@ -133,8 +168,8 @@ const viewEmployee = () => {
 }
 
 const addEmployee = async () => {
-const newRoleList = await roleList();
-const newManagerList = await managerList();
+    const newRoleList = await roleList();
+    const newManagerList = await managerList();
     inquirer.prompt([{
             type: 'input',
             name: 'firstName',
@@ -148,28 +183,38 @@ const newManagerList = await managerList();
             name: 'roles',
             message: "What is your employee's role?",
             choices: newRoleList
-    
+
         }, {
             type: 'list',
             name: 'Manager',
             message: "Who is your employee's manager?",
             choices: newManagerList
         }])
-        .then(ans => {
-           
-            const addFunc = "INSERT INTO employee (first_name,last_name,role_id.manager_id) VALUES (?,?,?,?)";
-            const addName = [ans.firstName, ans.lastName]
+        .then(async (ans) => {
+            const roleIds = await roleId(ans.roles)
+            const managerIds = await employeeId(ans.Manager)
+            const addFunc = "INSERT INTO employee (first_name,last_name,role_id,manager_id) VALUES (?,?,?,?)";
+            const addName = [ans.firstName, ans.lastName, roleIds, managerIds]
 
             db.query(addFunc, addName, (err, result) => {
                 if (err) {
                     throw err
                 } else {
+                    db.query(`SELECT CONCAT(a.first_name, " ", a.last_name) AS Name, employeerole.title AS Role, IFNULL(CONCAT(b.first_name, " ", b.last_name),NULL) AS Manager
+                    FROM employee a
+                    LEFT JOIN employee b ON b.id = a.manager_id
+                    JOIN employeerole ON a.role_id = employeerole.id
+                    ORDER BY a.last_name`, (err, result) => {
+                        if (err) {
+                            throw err
+                        } else {
+                            console.table(result)
+                            ask()
+                        }
 
-                    console.log(result)
-                    ask()
+                    })
                 }
             })
-
         })
 }
 const updateEmployeeRole = async () => {
@@ -186,16 +231,30 @@ const updateEmployeeRole = async () => {
         name: 'updateEmployeeRole',
         message: "which role do you want to assign the selected employee?",
         choices: newRoleList
-    }]).then(ans => {
-        const update = `UPDATE employee SET role_id AS role = ${ans.updateEmployeeRole} WHERE first_name = ${ans.employeeName}`;
+    }]).then(async (ans) => {
+        const roleIds = await roleId(ans.updateEmployeeRole)
+        const employeeIds = await employeeId(ans.employeeName)
+        const update = `UPDATE employee SET role_id = ${roleIds} WHERE id = ${employeeIds}`;
         db.query(update, (err, result) => {
             if (err) {
                 throw err
             } else {
-                console.log('Updated role')
+                db.query(`SELECT CONCAT(a.first_name, " ", a.last_name) AS Name, employeerole.title AS Role, IFNULL(CONCAT(b.first_name, " ", b.last_name),NULL) AS Manager
+                        FROM employee a
+                        LEFT JOIN employee b ON b.id = a.manager_id
+                        JOIN employeerole ON a.role_id = employeerole.id
+                        ORDER BY a.last_name`, (err, results) => {
+                    if (err) {
+                        throw err
+                    } else {
+                        console.table(results)
+                        ask()
+                    }
+                })
+
             }
         })
-        ask()
+
     })
 }
 
@@ -226,8 +285,21 @@ const addRole = async () => {
         message: 'Which department does the role belong to?',
         choices: myListDepartment
     }]).then(async (ans) => {
-
-        db.query('INSERT INTO employeerole(title,salary,department_id) VALUES (?,?,?)',[ans.role,ans.salary,ans.departmentNewList])
+        const roleIds = await deptId(ans.departmentList)
+        db.query('INSERT INTO employeerole(title,salary,department_id) VALUES (?,?,?)', [ans.role, ans.salary, roleIds], (err, results) => {
+            if (err) {
+                throw err
+            } else {
+                db.query('SELECT title AS role, salary AS Salary, department.name AS department FROM employeerole JOIN department ON department_id = department.id', (err, results) => {
+                    if (err) {
+                        throw err
+                    } else {
+                        console.table(results)
+                        ask()
+                    }
+                })
+            }
+        })
 
     })
 }
@@ -256,18 +328,18 @@ const addDepartment = () => {
             if (err) {
                 throw err
             } else {
-               console.log('added new department')
-               db.query('SELECT name AS Department FROM department',(error,results)=>{
-                   if (err) {
-                       throw err
-                   } else {
-                       console.cTable(results)
-                       ask()
-                   }
-               })
+                console.log('added new department')
+                db.query('SELECT name AS Department FROM department', (error, results) => {
+                    if (err) {
+                        throw err
+                    } else {
+                        console.table(results)
+                        ask()
+                    }
+                })
             }
         })
-       
+
     })
 }
 ask()

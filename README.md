@@ -28,8 +28,10 @@
     User can help improve this app anytime.
 <a name="test"></a>
 ## Test
-![gif](gif/Employee-Management.gif)
-video link: [https://drive.google.com/file/d/1YwAxjQFYI80hW7KWXVwXNPLEA_N1d39q/view](https://drive.google.com/file/d/1YwAxjQFYI80hW7KWXVwXNPLEA_N1d39q/view)
+<video  width="445" height="300" controls
+ src="gif/Employee-Menagement.mp4" type="video/mp4">
+</video>
+video link: [https://drive.google.com/file/d/1SV4HSdr64GOLKroLQOBA3vxBwMMttTw4/view](https://drive.google.com/file/d/1SV4HSdr64GOLKroLQOBA3vxBwMMttTw4/view)
 
 <a name="question"></a>
 ## Question
